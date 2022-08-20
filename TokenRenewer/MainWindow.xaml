@@ -1,0 +1,52 @@
+﻿<Window x:Class="TokenRenewer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:TokenRenewer"
+        xmlns:vm="clr-namespace:TokenRenewer.ViewModels"
+        mc:Ignorable="d"
+        Title="Token Renewer" Height="300" Width="600" ResizeMode="CanMinimize" WindowStartupLocation="CenterScreen" Loaded="Window_Loaded" Closed="Window_Closed">
+    <Window.DataContext>
+        <vm:MainWindowViewModel/>
+    </Window.DataContext>
+    <Window.Resources>
+        <Style x:Key="NormalButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#03A5F0"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2.8*"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <ScrollViewer Name="Scroller" Margin="10" Background="#D8D9D7" Grid.Column="0">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding ScrollViewerOutput, Mode=OneWay}" Margin="10 10 10 0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Path=.}" Foreground="#401201" FontFamily="Consolas"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <!--TextBox x:Name="InputBlock" Text="{Binding ScrollViewerInput, Mode=TwoWay}" Padding="7 0" Background="#D8D9D7" Foreground="#401201" FontFamily="Consolas" BorderBrush="{x:Null}" SelectionBrush="{x:Null}" KeyDown="InputBlock_KeyDown"/-->
+            </StackPanel>
+        </ScrollViewer>
+        <Grid Grid.Column="1" Margin="0 10 10 10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="26"/>
+                <RowDefinition Height="60"/>
+                <RowDefinition/>
+                <RowDefinition Height="20"/>
+                <RowDefinition Height="20"/>
+            </Grid.RowDefinitions>
+            <Label Content="Token renew after:" Grid.Row="0" HorizontalAlignment="Center"/>
+            <Label Content="{Binding CountDown}" ContentStringFormat="{}{0}(s)" FontSize="30" HorizontalContentAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" Grid.Row="1"/>
+            <Button x:Name="AutoRenewButton" Content="{Binding AutoRenewButtonContent, TargetNullValue=Start}" Width="100" Height="26" VerticalAlignment="Top" Style="{StaticResource NormalButtonStyle}" Grid.Row="2" Click="AutoRenewButton_Click"/>
+            <CheckBox Content="Auto start Renewer" IsChecked="{Binding AutoStartRenewer}" Grid.Row="3" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10 0 0 0"/>
+            <CheckBox Content="Auto restart Renewer" IsChecked="{Binding AutoRestartRenewer}" Grid.Row="4" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10 0 0 0"/>
+        </Grid>
+    </Grid>
+</Window>
