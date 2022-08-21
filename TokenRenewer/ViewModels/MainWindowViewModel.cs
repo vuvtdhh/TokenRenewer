@@ -3,57 +3,32 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Configuration;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
 using System.Windows;
+using System.Windows.Input;
+using TokenRenewer.Helpers;
+using TokenRenewer.Models;
 
 namespace TokenRenewer.ViewModels
 {
     public class MainWindowViewModel : INotifyPropertyChanged
     {
-        #region INotifyPropertyChanged implement
-        // INotifyPropertyChanged event handler
-        public event PropertyChangedEventHandler PropertyChanged;
-        protected void OnPropertyChanged(string name = null)
+        #region Properties
+        private TokenRenewerConfig _config;
+        public TokenRenewerConfig Config
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-        }
-        #endregion
-
-        // ScrollViewer
-        string Input = string.Empty;
-        ObservableCollection<string> Output = new ObservableCollection<string>() { "TOKEN AUTO RENEWER LOG:" };
-
-        public string ScrollViewerInput
-        {
-            get { return Input; }
+            get { return _config; }
             set
             {
-                Input = value;
-                OnPropertyChanged(nameof(ScrollViewerInput));
-            }
-        }
-        public ObservableCollection<string> ScrollViewerOutput
-        {
-            get { return Output; }
-            set
-            {
-                Output = value;
-                OnPropertyChanged(nameof(ScrollViewerOutput));
+                _config = value;
+                OnPropertyChanged(nameof(Config));
             }
         }
 
-        public void RunCommand()
-        {
-            ScrollViewerOutput.Add(ScrollViewerInput);
-            // do your stuff here.
-            ScrollViewerInput = String.Empty;
-        }
-
-        // Order control
         private int _countDown;
         public int CountDown
         {
@@ -65,8 +40,168 @@ namespace TokenRenewer.ViewModels
             }
         }
 
-        public string RenewerStatus { get; set; }
-        public NameValueCollection AppSettings = ConfigurationManager.AppSettings;
+        private string _renewerStatus;
+        public string RenewerStatus
+        {
+            get { return _renewerStatus; }
+            set
+            {
+                _renewerStatus = value;
+                OnPropertyChanged(nameof(RenewerStatus));
+                OnPropertyChanged(nameof(AutoRenewButtonContent));
+            }
+        }
+
+        public string AutoRenewButtonContent
+        {
+            get 
+            {
+                if(RenewerStatus == null || RenewerStatus == Config.StopStatus)
+                {
+                    return Config.AutoRenewButtonContentWhenStop;
+                }
+                else
+                {
+                    return Config.AutoRenewButtonContentWhenStart;
+                }
+            }
+        }
+
+        // ScrollViewer
+        string _input = string.Empty;
+        ObservableCollection<string> _output;
+
+        public string ScrollViewerInput
+        {
+            get { return _input; }
+            set
+            {
+                _input = value;
+                OnPropertyChanged(nameof(ScrollViewerInput));
+            }
+        }
+        public ObservableCollection<string> ScrollViewerOutput
+        {
+            get { return _output; }
+            set
+            {
+                _output = value;
+                OnPropertyChanged(nameof(ScrollViewerOutput));
+            }
+        }
+        #endregion
+
+        #region Construction
+        public MainWindowViewModel()
+        {
+            // Load config from DB.
+            try
+            {
+                Config = SqlFunctions.GetRenewerConfig();
+                if (Config == null)
+                {
+                    MessageBox.Show("Error", "Can't connect to database.");
+                }
+                else
+                {
+                    ScrollViewerOutput = new ObservableCollection<string>();
+                    ScrollViewerOutput.Add(Config.ScrollViewerHeader);
+                    CountDown = Config.RenewInterval;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.ToString(), "Error");
+            }
+        }
+        #endregion
+
+        #region Commands
+        void WindowLoaded()
+        {
+            // Chạy Renewer nếu config AutoStartRenewer.
+            if (Config.AutoStartRenewer)
+            {
+                Start();
+            }
+            else
+            {
+                RenewerStatus = Config.StopStatus;
+            }
+        }
+        bool CanWindowLoadedExecute()
+        {
+            return true;
+        }
+        public ICommand Window_Loaded
+        {
+            get
+            {
+                return new RelayCommand(WindowLoaded, CanWindowLoadedExecute);
+            }
+        }
+
+        #region Window_Closed
+        void WindowClosed()
+        {
+            // Lưu config vào DB.
+            SqlFunctions.TokenRenewerConfigUpdate(Config);
+        }
+        bool CanWindowClosedExecute()
+        {
+            return true;
+        }
+        public ICommand Window_Closed
+        {
+            get
+            {
+                return new RelayCommand(WindowClosed, CanWindowClosedExecute);
+            }
+        }
+        #endregion
+
+        void AutoRenewButtonClick()
+        {
+            if(RenewerStatus == Config.StopStatus)
+            {
+                Start();
+            }
+            else
+            {
+                Stop();
+            }
+        }
+        bool CanAutoRenewButtonClickExecute()
+        {
+            return true;
+        }
+        public ICommand AutoRenewButton_Click
+        {
+            get
+            {
+                return new RelayCommand(AutoRenewButtonClick, CanAutoRenewButtonClickExecute);
+            }
+        }
+        #endregion
+
+        #region INotifyPropertyChanged implement
+        // INotifyPropertyChanged event handler
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged(string name = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+        #endregion
+
+        
+
+        public void ShowInScrollViewer()
+        {
+            ScrollViewerOutput.Add(ScrollViewerInput);
+            // do your stuff here.
+            ScrollViewerInput = string.Empty;
+        }
+
         private Timer Timer { get; set; }
         private int RenewCount { get; set; }
 
@@ -94,20 +229,17 @@ namespace TokenRenewer.ViewModels
 
         public void Start()
         {
-            RenewerStatus = AppSettings["StartStatus"];
-            AutoRenewButtonContent = AppSettings["AutoRenewButtonContentWhenStart"];
-            CountDown = int.Parse(AppSettings["RenewInterval"]);
+            RenewerStatus = Config.StartStatus;
 
             Timer = new Timer();
-            Timer.Interval = 1000;
+            Timer.Interval = Config.TimerInterval;
             Timer.Elapsed += OnTimedEvent;
             Timer.Start();
         }
 
         public void Stop()
         {
-            RenewerStatus = AppSettings["StopStatus"];
-            AutoRenewButtonContent = AppSettings["AutoRenewButtonContentWhenStop"];
+            RenewerStatus = Config.StopStatus;
             Timer.Stop();
         }
 
@@ -115,39 +247,20 @@ namespace TokenRenewer.ViewModels
         {
             if (CountDown-- == 0)
             {
-                ScrollViewerInput = string.Format("Token has been renew at {0}. Order: {1}.", DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss"), ++RenewCount);
+                Timer.Stop();
+                // Update Token.
+                ScrollViewerInput = Renewer.Work(Config);
                 App.Current.Dispatcher.Invoke(() => {
-                    RunCommand();
-                    //NameValueCollection appSettings = ConfigurationManager.AppSettings;
-                    if (AutoRestartRenewer && RenewCount >= int.Parse(AppSettings["RestartRenewerAfter"]))
+                    ShowInScrollViewer();
+                    if (AutoRestartRenewer && RenewCount >= Config.RestartRenewerAfter)
                     {
-                        System.Diagnostics.Process.Start(Application.ResourceAssembly.Location);
+                        Process.Start(Application.ResourceAssembly.Location);
                         Application.Current.Shutdown();
                     }
                 });
-                CountDown = 5;
+                CountDown = Config.RenewInterval;
+                Timer.Start();
             }
-        }
-
-        private string _autoRenewButtonContent;
-        public string AutoRenewButtonContent
-        {
-            get { return _autoRenewButtonContent; }
-            set
-            {
-                _autoRenewButtonContent = value;
-                OnPropertyChanged(nameof(AutoRenewButtonContent));
-            }
-        }
-
-        //
-        public void UpdateConfig()
-        {
-            Configuration config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-            config.AppSettings.Settings["AutoStartRenewer"].Value = AutoStartRenewer.ToString();
-            config.AppSettings.Settings["AutoRestartRenewer"].Value = AutoRestartRenewer.ToString();
-            config.Save(ConfigurationSaveMode.Full);
-            ConfigurationManager.RefreshSection("appSettings");
         }
     }
 }
